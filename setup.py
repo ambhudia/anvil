@@ -15,7 +15,7 @@ setup(
     author_email=[
         "ashu.bhudia@gmail.com",
         ]
-    url="https://github.com/ambhudia/forge,
+    url="https://github.com/ambhudia/forge",
     license=license,
     packages=find_packages(),
 )

@@ -7,6 +7,7 @@ with open("LICENSE") as f:
     license = f.read()
 
 setup(
+    name="forge",
     version="0.0.1",
     description="Components and utilities for Qiskit-Metal",
     long_description=readme,

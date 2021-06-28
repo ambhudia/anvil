@@ -69,22 +69,6 @@ class Meander(QComponent):
         y_meanders = []
         
         ############################## COUPLER ##############################
-        # Create the first pin
-        y_disp = self.options.origin_y if orientation else self.p.origin_y-self.p.pin_width
-        angle = "90" if orientation else "270"
-        self.start_pin = OpenToGround(
-            self.design, 
-            self.name +'_pin1', 
-            options=dict(
-                pos_x=self.p.origin_x,
-                pos_y=self.p.origin_y, 
-                orientation=angle, 
-                gap = self.p.pin_width,
-                termination_gap = self.p.pin_width,
-                width = self.p.trace_width 
-            )
-        )
-
         # Create the coupler 
         x = 0
         y = self.p.pin_width
@@ -166,22 +150,19 @@ class Meander(QComponent):
         x_pts.append(np.array([x]))
         y_pts.append(np.array([y]))
         
-        # Create the second pin
-        y_disp = y if orientation else y-self.p.pin_width
-        angle = "90" if orientation else "270"
-        self.end_pin = OpenToGround(
-            self.design, 
-            self.name +'_pin2', 
-            options=dict(
-                pos_x=x+self.p.origin_x,
-                pos_y=y+self.p.origin_y, 
-                orientation=angle, 
-                gap = self.p.pin_width,
-                termination_gap = self.p.pin_width,
-                width = self.p.trace_width 
-            ),
-        )
-        
+        ################################ Create Terminations ####################
+        sign = 1 if self.p.coupler_orientation else -1
+        pin1 = np.zeros([2, 2])
+        pin1[0][0], pin1[1][0] = self.p.origin_x, self.p.origin_x
+        pin1[0][0], pin1[1][0] = self.p.origin_y, sign * self.p.pin_width + self.p.origin_y
+        self.make_elements(pin1, True)
+
+
+        sign = sign if self.p.n_lines%2 == 0 else -1*sign
+        pin2 = np.zeros([2, 2])
+        pin2[0][0], pin2[1][0] = x + self.p.origin_x, x + self.p.origin_x
+        pin2[0][0], pin2[1][0] = y + self.p.origin_y, y + self.origin_y + sign*self.p.pin_width
+        self.make_elements(pin2, True)
         
         ############################### Concatenate Arrays #####################
         x_pts = np.concatenate(x_pts)
@@ -290,7 +271,7 @@ class Meander(QComponent):
     def get_pins(self):
         return self.start_pin, self.end_pin
     
-    def make_elements(self, pts: np.ndarray):
+    def make_elements(self, pts: np.ndarray, short: bool = False):
         """Turns the CPW points into design elements, and add them to the
         design object.
 
@@ -302,9 +283,12 @@ class Meander(QComponent):
         line = draw.LineString(pts)
 
         # expand the routing track to form the substrate core of the cpw
-        self.add_qgeometry('path', {'trace': line},
-                           width=p.trace_width,
-                           layer=p.layer)
+        if not short:
+            self.add_qgeometry(
+                'path', {'trace': line},
+                width=p.trace_width,
+                layer=p.layer
+                )
 
         self.add_qgeometry('path', {'cut': line},
                                width=p.trace_width + 2 * p.trace_gap,

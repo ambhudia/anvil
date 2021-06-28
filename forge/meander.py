@@ -3,8 +3,6 @@ import numpy as np
 from qiskit_metal import draw, Dict, designs
 from qiskit_metal.toolbox_metal import math_and_overrides
 from qiskit_metal.qlibrary.core import QComponent
-from qiskit_metal.qlibrary.terminations.open_to_ground import OpenToGround
-from qiskit_metal.qlibrary.terminations.short_to_ground import ShortToGround
 
 
 class Meander(QComponent):
@@ -154,14 +152,14 @@ class Meander(QComponent):
         sign = 1 if self.p.coupler_orientation else -1
         pin1 = np.zeros([2, 2])
         pin1[0][0], pin1[1][0] = self.p.origin_x, self.p.origin_x
-        pin1[0][0], pin1[1][0] = self.p.origin_y, sign * self.p.pin_width + self.p.origin_y
+        pin1[0][1], pin1[1][1] = self.p.origin_y, sign * self.p.pin_width + self.p.origin_y
         self.make_elements(pin1, True)
 
 
         sign = sign if self.p.n_lines%2 == 0 else -1*sign
         pin2 = np.zeros([2, 2])
         pin2[0][0], pin2[1][0] = x + self.p.origin_x, x + self.p.origin_x
-        pin2[0][0], pin2[1][0] = y + self.p.origin_y, y + self.origin_y + sign*self.p.pin_width
+        pin2[0][1], pin2[1][1] = y + self.p.origin_y, y + self.p.origin_y + sign*self.p.pin_width
         self.make_elements(pin2, True)
         
         ############################### Concatenate Arrays #####################

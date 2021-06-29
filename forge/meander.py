@@ -285,10 +285,13 @@ class Meander(QComponent):
             self.add_qgeometry(
                 'path', {'trace': line},
                 width=p.trace_width,
-                layer=p.layer
+                layer=p.layer,
+                fillet=0
                 )
 
         self.add_qgeometry('path', {'cut': line},
                                width=p.trace_width + 2 * p.trace_gap,
                                layer=p.layer,
-                               subtract=True)
+                               subtract=True,
+                               fillet=0
+                               )

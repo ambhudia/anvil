@@ -33,7 +33,6 @@ class Meander(QComponent):
             trace_gap = "0.02um",
             trace_width = "0.01um",
             end_length = "5um",
-            pin_width = "0.02um",
     )
     
 
@@ -69,7 +68,7 @@ class Meander(QComponent):
         ############################## COUPLER ##############################
         # Create the coupler 
         x = 0
-        y = self.p.pin_width
+        y = 0
         
         x_pts.append(np.array([x]))
         y_pts.append(np.array([y]))
@@ -110,9 +109,7 @@ class Meander(QComponent):
             
             
             if self.p.width_incl_meanders:
-                if line == 0:
-                    y_dist -= cutoff
-                elif line == self.p.n_lines-1:
+                if line == self.p.n_lines-1:
                     y_dist -= cutoff
                 else:
                     y_dist -= 2*cutoff
@@ -136,7 +133,7 @@ class Meander(QComponent):
             orientation =  not orientation
         
         ################################### End Length #########################
-        y_dist = self.p.end_length - self.p.pin_width
+        y_dist = self.p.end_length 
             
         x -= self.p.spacing    
         if self.p.width_incl_meanders:
@@ -148,23 +145,10 @@ class Meander(QComponent):
         x_pts.append(np.array([x]))
         y_pts.append(np.array([y]))
         
-        ################################ Create Terminations ####################
-        sign = 1 if self.p.coupler_orientation else -1
-        pin1 = np.zeros([2, 2])
-        pin1[0][0], pin1[1][0] = self.p.origin_x, self.p.origin_x
-        pin1[0][1], pin1[1][1] = self.p.origin_y, sign * self.p.pin_width + self.p.origin_y
-        self.make_elements(pin1, True)
-
-
-        sign = sign if self.p.n_lines%2 == 0 else -1*sign
-        pin2 = np.zeros([2, 2])
-        pin2[0][0], pin2[1][0] = x + self.p.origin_x, x + self.p.origin_x
-        pin2[0][1], pin2[1][1] = y + self.p.origin_y, y + self.p.origin_y + sign*self.p.pin_width
-        self.make_elements(pin2, True)
         
         ############################### Concatenate Arrays #####################
-        x_pts = np.concatenate(x_pts)
-        y_pts = np.concatenate(y_pts)
+        x_pts = -np.concatenate(x_pts)
+        y_pts = -np.concatenate(y_pts)
         
         
         # Set points
@@ -180,6 +164,16 @@ class Meander(QComponent):
         # Make points into elements
         self.qgeometry_table_usage = {'path': True, 'poly': False, 'junction': False}
         self.make_elements(self.points)
+        self.x_end = self.points[:,0][-1]
+        self.y_end = self.points[:,1][-1]
+        self.x_pts = x_pts + self.p.origin_x
+        self.y_pts = y_pts + self.p.origin_y
+    
+    def get_endpoints(self):
+        return self.x_end, self.y_end
+
+    def get_points(self):
+        return self.x_pts, self.y_pts
     
     
     def get_theta(self, is_coupler:bool) -> float:

@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description/>
+ <version/>
+ <category>pymacros</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>true</autorun>
+ <autorun-early>false</autorun-early>
+ <shortcut/>
+ <show-in-menu>false</show-in-menu>
+ <group-name/>
+ <menu-path/>
+ <interpreter>python</interpreter>
+ <dsl-interpreter-name/>
+ <text>import pya
+import math
+import numpy as np
+from forge import distributed_filter
+
+
+class NanoWire(pya.PCellDeclarationHelper):
+  def __init__(self):
+    # first, must initiate superclass, than add our own stuff below
+    super(NanoWire, self).__init__()
+    self.param("l", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+    # declare the parameters for the design
+    self.param("length", self.TypeDouble, "Total Inductor Length", default=950)
+    self.param("r", self.TypeDouble, "Radius", default=4)
+    self.param("ell", self.TypeDouble, "l", default=91.59)
+    self.param("w", self.TypeDouble, "conductor width", default=1)
+    self.param("x_length", self.TypeDouble, "x_length", default=4)
+    self.param("n_points_meander", self.TypeInt, "n_points_meander", default=3600)
+    self.param("polygon", self.TypeBoolean, "make as polygon", default=True)
+    self.param("round_polygon", self.TypeBoolean, "round polygon", default=False)
+  
+    
+  def display_text_impl(self):
+    return f"""
+        """
+              
+  def coerce_parameters_impl(self):
+    pass
+  
+  def can_create_from_shape_impl(self):
+    return False
+  
+  def parameters_from_shape_impl(self):
+    pass
+  
+  def transformation_from_shape_impl(self):
+    pass
+  
+  def produce_impl(self):
+    
+    dbu = 1/self.layout.dbu
+    series = distributed_filter.BendedEndResonator()
+    (x_series, y_series, insert_x, insert_y) = series.generate_resonator(
+        origin_x = 0, 
+        origin_y = 0, 
+        N = 1,
+        L = self.length, 
+        r = self.r, 
+        l = self.ell, 
+        x_length = self.x_length,
+        upwards = False,
+        n_points_meander = self.n_points_meander,
+        clean=True
+    )
+    n = self.n_points_meander
+    ri = self.r - 0.5*self.w
+    ro = self.r + 0.5*self.w
+    # make the series part now
+    pts = [pya.Point.from_dpoint(pya.DPoint(x*dbu, y*dbu)) for (x, y) in zip(x_series, y_series)]
+    outer = pya.Path(pts, self.w*dbu)
+    
+    if self.polygon:
+      if self.round_polygon:
+        outer = [outer.polygon().round_corners(ri, ro, n)]
+      else:
+        outer = [outer.polygon()]
+      for p in outer:
+        self.cell.shapes(self.l_layer).insert(p)
+    else:
+        self.cell.shapes(self.l_layer).insert(outer)
+    
+
+class DistributedFilter(pya.PCellDeclarationHelper):
+  def __init__(self):
+    # first, must initiate superclass, than add our own stuff below
+    super(DistributedFilter, self).__init__()
+
+    # declare the parameters for the design
+    self.param("l", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+    self.param("N", self.TypeInt, "Number of Stages", default=1)     
+    self.param("n", self.TypeInt, "Number of full meanders on series", default=9)
+    self.param("Length", self.TypeDouble, "Total Resonator Length", default=950)
+    self.param("r", self.TypeDouble, "Radius", default=4)
+    self.param("ell", self.TypeDouble, "l", default=91.59)
+    self.param("w", self.TypeDouble, "CPW conductor width", default=1)
+    self.param("s", self.TypeDouble, "CPW gap width", default=1)
+    self.param("x_length", self.TypeDouble, "x_length", default=4)
+    self.param("shunt_padding", self.TypeInt, "Shunt paddings", default=3)
+    self.param("n_points_meander", self.TypeInt, "n_points_meander", default=3600)
+    self.param("polygon", self.TypeBoolean, "make as polygon", default=True)
+    self.param("round_polygon", self.TypeBoolean, "round polygon", default=False)
+    
+  def display_text_impl(self):
+    return f"""
+        """
+      
+  def coerce_parameters_impl(self):
+    pass
+  
+  def can_create_from_shape_impl(self):
+    return False
+  
+  def parameters_from_shape_impl(self):
+    pass
+  
+  def transformation_from_shape_impl(self):
+    pass
+  
+  def produce_impl(self):
+    dbu = 1/self.layout.dbu
+    
+    if self.N == 1:
+      (
+        x_series, 
+        y_series, 
+        x_shunt1, 
+        y_shunt1, 
+      ) = distributed_filter.one_stage_filter(
+          origin_x=0, 
+          origin_y=0, 
+          n=self.n,
+          L=self.Length, 
+          r=self.r, 
+          l=self.ell, 
+          w=self.w, 
+          s=self.s, 
+          x_length=self.x_length, 
+          shunt_padding=self.shunt_padding, 
+          n_points_meander=self.n_points_meander
+      )
+    else:
+      (
+        x_series, 
+        y_series, 
+        x_shunt1, 
+        y_shunt1, 
+        x_shunt2, 
+        y_shunt2, 
+      ) = distributed_filter.two_stage_filter(
+          origin_x=0, 
+          origin_y=0, 
+          n=self.n,
+          L=self.Length, 
+          r=self.r, 
+          l=self.ell, 
+          w=self.w, 
+          s=self.s, 
+          x_length=self.x_length, 
+          shunt_padding=self.shunt_padding, 
+          n_points_meander=self.n_points_meander
+      )
+    n = self.n_points_meander
+    ri = self.r - 0.5*self.w
+    ro = self.r + 0.5*self.w
+    rii = self.r - 0.5*self.w - self.s
+    roo = self.r + 0.5*self.w + self.s
+    
+    # make the series part now
+    pts = [pya.Point.from_dpoint(pya.DPoint(x*dbu, y*dbu)) for (x, y) in zip(x_series, y_series)]
+    outer = pya.Path(pts, (self.w+2*self.s)*dbu)
+
+    if self.polygon:
+      inner = pya.Path(pts, (self.w)*dbu)
+      if self.round_polygon:
+        inner = [inner.polygon().round_corners(ri, ro, n)]
+        outer = [outer.polygon().round_corners(rii, roo, n)]
+      else:
+        inner = [inner.polygon()]
+        outer = [outer.polygon()]
+      ep = pya.EdgeProcessor()
+      outer_minus_inner = ep.boolean_p2p(outer, inner, pya.EdgeProcessor().ModeANotB, True, False)
+      for p in outer_minus_inner:
+        self.cell.shapes(self.l_layer).insert(p)
+    else:
+        self.cell.shapes(self.l_layer).insert(outer)
+    
+    # make the shunt 1 part
+    pts = [pya.Point.from_dpoint(pya.DPoint(x*dbu, y*dbu)) for (x, y) in zip(x_shunt1, y_shunt1)]
+    outer = pya.Path(pts, (self.w+2*self.s)*dbu)
+
+    if self.polygon:
+      inner = pya.Path(pts, (self.w)*dbu)
+      if self.round_polygon:
+        inner = [inner.polygon().round_corners(ri, ro, n)]
+        outer = [outer.polygon().round_corners(rii, roo, n)]
+      else:
+        inner = [inner.polygon()]
+        outer = [outer.polygon()]
+      ep = pya.EdgeProcessor()
+      outer_minus_inner = ep.boolean_p2p(outer, inner, pya.EdgeProcessor().ModeANotB, True, False)
+      for p in outer_minus_inner:
+        self.cell.shapes(self.l_layer).insert(p)
+    else:
+        self.cell.shapes(self.l_layer).insert(outer)     
+    # 2 stage filter  
+    if self.N==2:
+      # make the shunt 2 part
+      pts = [pya.Point.from_dpoint(pya.DPoint(x*dbu, y*dbu)) for (x, y) in zip(x_shunt2, y_shunt2)]
+      outer = pya.Path(pts, (self.w+2*self.s)*dbu)
+  
+      if self.polygon:
+        inner = pya.Path(pts, (self.w)*dbu)
+        if self.round_polygon:
+          inner = [inner.polygon().round_corners(ri, ro, n)]
+          outer = [outer.polygon().round_corners(rii, roo, n)]
+        else:
+          inner = [inner.polygon()]
+          outer = [outer.polygon()]
+        ep = pya.EdgeProcessor()
+        outer_minus_inner = ep.boolean_p2p(outer, inner, pya.EdgeProcessor().ModeANotB, True, False)
+        for p in outer_minus_inner:
+          self.cell.shapes(self.l_layer).insert(p)
+      else:
+          self.cell.shapes(self.l_layer).insert(outer)   
+    
+
+          
+        
+
+class IDC(pya.PCellDeclarationHelper):
+  def __init__(self):
+    # first, must initiate superclass, than add our own stuff below
+    super(IDC, self).__init__()
+
+    # declare the parameters for the design
+    self.param("l", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+    self.param("n", self.TypeInt, "Number of fingers", default=15)     
+    self.param("W", self.TypeDouble, "Electrode Width", default=10)
+    self.param("G", self.TypeDouble, "Gap between Electrodes", default=10)
+    self.param("finger_length", self.TypeDouble, "Finger Length", default=100)
+    self.param("wall_width", self.TypeDouble, "Wall Width", default=10)
+    self.param("wall_spacing", self.TypeDouble, "Wall Spacing", default=10)
+  
+  def display_text_impl(self):
+    return f"""
+        IDC
+        N = {self.n}
+        L = {self.finger_length:.2f}
+        W = {self.W:.2f}
+        G = {self.G:.2f}
+        """
+      
+  def coerce_parameters_impl(self):
+    pass
+  
+  def can_create_from_shape_impl(self):
+    return False
+  
+  def parameters_from_shape_impl(self):
+    pass
+  
+  def transformation_from_shape_impl(self):
+    pass
+  
+  def produce_impl(self):
+    """
+    The main method, essentially. 
+    The construction of the IDC is pretty simple: I just use the Box PCell
+    to make the device using multiple rectangular blocks
+    """
+    dbu = 1/self.layout.dbu
+    # make the left wall
+    left_wall_x = self.wall_width*dbu
+    left_wall_y = self.n*self.G*dbu + (self.n-1)*self.W*dbu
+    
+    self.cell.shapes(self.l_layer).insert(pya.Box(0, 0, left_wall_x, left_wall_y))
+    
+    if self.n%2==0:
+      # same number of fingers on each side
+      n_left, n_right = int(self.n/2), int(self.n/2)
+    else:
+      n_left, n_right = int(self.n/2) + 1, int(self.n/2)
+    
+    # make the fingers on the left hand side, starting with the bottom and moving up
+    x_left_finger = left_wall_x
+    y_left_finger = 0
+    
+    for finger in range(n_left):
+      self.cell.shapes(self.l_layer).insert(pya.Box(
+        x_left_finger, 
+        y_left_finger, 
+        x_left_finger+self.finger_length*dbu, 
+        y_left_finger+self.W*dbu
+        ))
+      y_left_finger += 2*(self.W+self.G)*dbu
+
+    # make the fingers on the left hand side
+    x_right_finger = left_wall_x + self.wall_spacing*dbu
+    y_right_finger = (self.W+self.G)*dbu
+    
+    for finger in range(n_right):
+      self.cell.shapes(self.l_layer).insert(pya.Box(
+        x_right_finger, 
+        y_right_finger, 
+        x_right_finger+self.finger_length*dbu, 
+        y_right_finger+self.W*dbu
+        ))
+      y_right_finger += 2*(self.W+self.G)*dbu
+    
+    # make the right wall
+    right_wall_x_bottom = x_right_finger + self.finger_length*dbu
+    right_wall_y_bottom = 0
+    right_wall_x_top = right_wall_x_bottom + self.wall_width*dbu
+    right_wall_y_top = left_wall_y
+    
+    self.cell.shapes(self.l_layer).insert(pya.Box(
+      right_wall_x_bottom, 
+      right_wall_y_bottom, 
+      right_wall_x_top, 
+      right_wall_y_top))
+
+class PDK(pya.Library):
+  """
+  The library where we will put the PCells into 
+  """
+  def __init__(self):
+    self.description = "PDK containing PCells for \n1) IDCs \n2) Nanowires \n3) CPW Resonators \n4) CPW stub filters"
+    # Add all the PCells here
+    self.layout().register_pcell("IDC", IDC())
+    self.layout().register_pcell("NanoWire", NanoWire())
+    self.layout().register_pcell("DistributedFilter", DistributedFilter())
+    # Register the PDK library into klayout 
+    self.register("PDK")
+
+
+PDK()
+</text>
+</klayout-macro>

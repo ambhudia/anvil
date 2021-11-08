@@ -338,7 +338,8 @@ class BendedEndResonator:
         l, 
         x_length,
         upwards = False,
-        n_points_meander = 3600
+        n_points_meander = 3600,
+        clean=True
         ):
         insert_x, insert_y  = [], []
         x_pts, y_pts = [], []
@@ -366,6 +367,22 @@ class BendedEndResonator:
         y_pts.append(ys)
 
         x, y = xs[-1], ys[-1]
+        
+        if N == 1:
+            GRS = GenericResonatorSection()
+            (xs, ys, upwards, _ , _ , _ ,_ , _ ) = GRS.generate_resonator(
+                x, 
+                y, 
+                _L, 
+                l,
+                r,
+                n_points_meander,
+                carryover = carryover,
+                upwards = upwards
+            )
+            x_pts.append(xs)
+            y_pts.append(ys)
+            x, y = xs[-1], ys[-1]
         if N == 2:
             GRS = GenericResonatorSection()
             (xs, ys, upwards, _ , _ , _ ,_ , _ ) = GRS.generate_resonator(
@@ -592,11 +609,14 @@ class BendedEndResonator:
         x_pts = np.concatenate(x_pts)
         y_pts = np.concatenate(y_pts)
         
+        if clean:
+            x_pts, y_pts = remove_backtracking_points(x_pts, y_pts, name="Series")
+        
         return x_pts, y_pts, insert_x, insert_y
 
 
 def generate_shunt_resonator_params(W, w, s, r, x):
-    l = W-w-2*s-2*r
+    l = W-(w+2*s)-2*r
     carryover1 = l-r-x
     carryover2 = x-2*r
     carryover = max(carryover1, carryover2)
@@ -616,7 +636,8 @@ class ShuntResonator:
         x_length, 
         leftward = True,
         above = True,
-        n_points_meander = 3600
+        n_points_meander = 3600,
+        clean=True
          ):
         l, carryover = generate_shunt_resonator_params(W, w, s, r, origin_x)
         _L = L-w/2-x_length-np.pi/2*r
@@ -659,7 +680,10 @@ class ShuntResonator:
         y_pts.append(ys)
         x_pts = np.concatenate(x_pts)
         y_pts = np.concatenate(y_pts)
-
+        
+        if clean:
+            x_pts, y_pts = remove_backtracking_points(x_pts, y_pts, name="Shunt")
+        
         above = not above 
         if above:
             if not leftward:
@@ -678,7 +702,40 @@ class ShuntResonator:
 
         
         return x_pts, y_pts
-        
+
+    
+def remove_backtracking_points(x_arr, y_arr, n_iters=10, diff_threshold=1e-15, name=""):
+    init_length = len(x_arr)
+    length = init_length
+    for n in range(n_iters):
+        x_pts, y_pts = [], []
+        for i, (x1, y1, x2, y2) in enumerate(zip(x_arr[:-1], y_arr[:-1], x_arr[1:], y_arr[1:])):
+            if i==0:
+                x_pts.append(x1)
+                y_pts.append(y1)
+            if x2<x1:
+                continue
+            if (
+                (abs(x2-x1) < diff_threshold) and (abs(y2-y1) < diff_threshold)
+            ):
+                continue
+            diff = np.sqrt((x2-x1)**2 + (y2-y1)**2)
+            if diff < diff_threshold:
+                continue
+            x_pts.append(x2)
+            y_pts.append(y2)
+        x_pts = np.asarray(x_pts)
+        y_pts = np.asarray(y_pts)
+        length_new = len(x_pts)
+        if length==length_new:
+            print(f"{name} Backtracking: Cleaned in {n+1} iters. Removed {init_length-length} points")
+            break
+        else:
+            length = length_new
+            x_arr = x_pts
+            y_arr = y_pts
+            
+    return x_pts, y_pts
 
 def one_stage_filter(
     origin_x, 
@@ -691,19 +748,21 @@ def one_stage_filter(
     s, 
     x_length, 
     shunt_padding=3, 
-    n_points_meander=3600
+    n_points_meander=3600,
+    clean=True
 ):
     Series = BendedEndResonator()
     (x_series, y_series, insert_x, insert_y) = Series.generate_resonator(
         origin_x = origin_x, 
-        origin_y = origin_x, 
+        origin_y = origin_y, 
         N = 2, 
         L = L, 
         r = r, 
         l = l, 
         x_length = x_length,
         upwards = False,
-        n_points_meander = 3600
+        n_points_meander = 3600,
+        clean=clean
     )
     Wreal = (max(x_series)-min(x_series))+(w+2*s)
 
@@ -722,7 +781,8 @@ def one_stage_filter(
         x_length = l/2+shunt_padding*r, 
         leftward = False,
         above = above,
-        n_points_meander = 3600
+        n_points_meander = 3600,
+        clean=clean
     )
     return x_series, y_series, x_shunt1, y_shunt1
 
@@ -738,7 +798,8 @@ def two_stage_filter(
     s, 
     x_length, 
     shunt_padding=3, 
-    n_points_meander=3600
+    n_points_meander=3600,
+    clean=True
 ):
     if n%2 == 1:
         raise ValueError("n must be even")
@@ -753,7 +814,8 @@ def two_stage_filter(
         l = l, 
         x_length = x_length,
         upwards = False,
-        n_points_meander = n_points_meander
+        n_points_meander = n_points_meander,
+        clean=clean
     )
     Wreal = (max(x_series)-min(x_series))+(w+2*s)
 
@@ -770,7 +832,8 @@ def two_stage_filter(
         x_length = l/2+3*r, 
         leftward = False,
         above = False,
-        n_points_meander = n_points_meander
+        n_points_meander = n_points_meander,
+        clean=clean
     )
     x_shunt2, y_shunt2 = Shunt.generate_resonator(
         origin_x = insert_x[1],
@@ -783,7 +846,8 @@ def two_stage_filter(
         x_length = l/2+shunt_padding*r, 
         leftward = False,
         above = True,
-        n_points_meander = n_points_meander
+        n_points_meander = n_points_meander,
+        clean=clean
     )
     
     return x_series, y_series, x_shunt1, y_shunt1, x_shunt2, y_shunt2
